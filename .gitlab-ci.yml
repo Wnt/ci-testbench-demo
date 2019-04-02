@@ -1,48 +1,41 @@
 variables:
+  # Any variables here will be set to the enviroment the containers run in.
+  # e.g. MAVEN_OPTS environment variable will be used by any Maven commands
+
   # This will suppress any download for dependencies and plugins or upload messages which would clutter the console log.
   # `showDateTime` will show the passed time in milliseconds. You need to specify `--batch-mode` to make this work.
   MAVEN_OPTS: "-Dmaven.repo.local=.m2/repository -Dorg.slf4j.simpleLogger.log.org.apache.maven.cli.transfer.Slf4jMavenTransferListener=WARN -Dorg.slf4j.simpleLogger.showDateTime=true -Djava.awt.headless=true"
-  # As of Maven 3.3.0 instead of this you may define these options in `.mvn/maven.config` so the same config is used
-  # when running from the command line.
-  # `installAtEnd` and `deployAtEnd` are only effective with recent version of the corresponding plugins.
+  # This first defines sane defaults for CI style running. Then there is two TestBench specific system properties:
+  # com.vaadin.testbench.Parameters.hubHostname - this must match the alias (hostname) of the selenium standalone service
+  # vaadin.proKey - read the value from $VAADIN_PRO_KEY to not store secrets in the repo. The value is set via GitLab: Settings -> CI / CD -> Environment variables -> Variable key: VAADIN_PRO_KEY
   MAVEN_CLI_OPTS: "--batch-mode --errors --fail-at-end --show-version -DinstallAtEnd=true -DdeployAtEnd=true -Dcom.vaadin.testbench.Parameters.hubHostname=selenium-standalone-chrome -Dvaadin.proKey=$VAADIN_PRO_KEY"
-  # set the hub hostname to selenium nodes
-  # https://docs.gitlab.com/ee/ci/docker/using_docker_images.html#available-settings-for-services
-  # GitLab Runner 0.5.0 and up passes all YAML-defined variables to the created service containers.
-  HUB_HOST: hub
 
 # Cache downloaded dependencies and plugins between builds.
-# To keep cache across branches add 'key: "$CI_JOB_REF_NAME"'
 cache:
   paths:
   - .m2/repository
 
-# This will only validate and compile stuff and run e.g. maven-enforcer-plugin.
-# Because some enforcer rules might check dependency convergence and class duplications
-# we use `test-compile` here instead of `validate`, so the correct classpath is picked up.
-.validate: &validate
+# Use Maven Docker image to run the builds
+image: maven:3.6-jdk-12
+
+# Define pipeline stages
+stages:
+  - build
+  - test
+
+# Runs mvn test-compile in the build stage. If return value is zero, job is considered to be passing
+build:
   stage: build
   script:
   - 'mvn $MAVEN_CLI_OPTS test-compile'
 
-# For merge requests do not `deploy` but only run `verify`.
-# See https://maven.apache.org/guides/introduction/introduction-to-the-lifecycle.html
-.verify: &verify
+# Runs mvn verify in the test stage. If return value is zero, job is considered to be passing
+verify:
   stage: test
   script:
-  - 'mvn $MAVEN_CLI_OPTS verify'
-  except:
-  - master
-
-# Validate merge requests using JDK10
-validate:jdk10:
-  <<: *validate
-  image: maven:3.5.4-jdk-10
-
-# Verify merge requests using JDK10
-verify:jdk10:
-  <<: *verify
-  image: maven:3.5.4-jdk-10
+    - 'mvn --activate-profiles=gitlab-it $MAVEN_CLI_OPTS verify'
   services:
-  - name: selenium/standalone-chrome:3.141.59-mercury
-    alias: selenium-standalone-chrome
+    # this image fires up a remotely drivable chrome on port 4444 on startup
+    - name: selenium/standalone-chrome:3.141.59-mercury
+      # and we give it a known DNS alias in order to tell testbench where it can be found
+      alias: selenium-standalone-chrome
