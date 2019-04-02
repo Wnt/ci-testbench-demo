@@ -1,0 +1,7 @@
+/target/
+.classpath
+.vscode
+.driver
+.settings
+.project
+/src/test/resources/webdriver/compressed_files/
