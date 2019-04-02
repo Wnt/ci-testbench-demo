@@ -187,15 +187,16 @@
 				</plugins>
 			</build>
 		</profile>
-		<!-- <profile> -->
-		<!-- <id>it</id> -->
-		<!-- <activation> -->
-		<!-- <property> -->
-		<!-- <name>it</name> -->
-		<!-- </property> -->
-		<!-- </activation> -->
-		<!-- <build> -->
-		<!-- </build> -->
-		<!-- </profile> -->
+		<!-- this fixes a known bug in surefire plugin -->
+		<!-- workaround found https://stackoverflow.com/questions/53010200/maven-surefire-could-not-find-forkedbooter-class -->
+		<profile>
+			<id>SUREFIRE-1588</id>
+			<activation>
+				<activeByDefault>true</activeByDefault>
+			</activation>
+			<properties>
+				<argLine>-Djdk.net.URLClassPath.disableClassPathURLCheck=true</argLine>
+			</properties>
+		</profile>
 	</profiles>
 </project>
